@@ -38,15 +38,15 @@ export default function ChatInterface() {
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const { switchChainAsync } = useSwitchChain();
   const queryClient = useQueryClient();
 
-  // Auto-switch to BSC Testnet if wallet is on wrong chain
-  useEffect(() => {
-    if (isConnected && chainId && chainId !== bscTestnet.id) {
-      switchChain({ chainId: bscTestnet.id });
+  // Helper: ensure wallet is on BSC Testnet before any write
+  const ensureBscTestnet = async () => {
+    if (chainId !== bscTestnet.id) {
+      await switchChainAsync({ chainId: bscTestnet.id });
     }
-  }, [isConnected, chainId]);
+  };
 
   const { data: balanceData } = useReadContract({
     address: CONTRACTS.MOCK_USDC,
@@ -136,6 +136,7 @@ export default function ChatInterface() {
   const handleMint = async () => {
     if (!isConnected || !address) return;
     try {
+      await ensureBscTestnet();
       addMessage('system', '⏳ Minting 1000 mUSDC...');
       writeContract({
         chainId: bscTestnet.id,
@@ -156,6 +157,7 @@ export default function ChatInterface() {
     addMessage('system', `⏳ Step ${txIndex + 1}/${pendingTransactions.length}: ${tx.description}`);
 
     try {
+      await ensureBscTestnet();
       resetWrite();
       
       if (tx.description.includes('Approve')) {
