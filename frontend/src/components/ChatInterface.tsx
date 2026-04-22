@@ -48,7 +48,7 @@ export default function ChatInterface() {
     }
   }, [isConnected, chainId]);
 
-  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+  const { data: balanceData } = useReadContract({
     address: CONTRACTS.MOCK_USDC,
     abi: MOCK_USDC_ABI,
     functionName: 'balanceOf',
