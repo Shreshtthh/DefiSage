@@ -12,7 +12,7 @@ import { AgentBuilder } from '@iqai/adk';
 import { coordinatorAgent } from './agents/coordinator/coordinator-agent';
 
 async function main() {
-  console.log('🚀 ChainInsight - Development Test Mode');
+  console.log('🚀 DefiSage - Development Test Mode');
   console.log('==========================================\n');
 
   if (!process.env.GOOGLE_API_KEY) {
@@ -22,7 +22,7 @@ async function main() {
   console.log('✅ Running development tests...\n');
 
   const { runner } = await AgentBuilder
-    .create('chaininsight')
+    .create('DefiSage')
     .withAgent(coordinatorAgent)
     .build();
 

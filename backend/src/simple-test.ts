@@ -3,7 +3,7 @@ import { Runner, InMemorySessionService } from '@iqai/adk';
 import { coordinatorAgent } from './agents/coordinator/coordinator-agent';
 
 async function main() {
-  console.log('🚀 ChainInsight - Web3 Research & Execution Agent');
+  console.log('🚀 DefiSage - Web3 Research & Execution Agent');
   console.log('================================================\n');
 
   // Validate environment
@@ -16,10 +16,10 @@ async function main() {
   try {
     // CORRECT PATTERN FROM DOCS: Use Runner directly
     const sessionService = new InMemorySessionService();
-    const session = await sessionService.createSession('chaininsight', 'user123');
-    
+    const session = await sessionService.createSession('DefiSage', 'user123');
+
     const runner = new Runner({
-      appName: 'chaininsight',
+      appName: 'DefiSage',
       agent: coordinatorAgent,
       sessionService: sessionService
     });

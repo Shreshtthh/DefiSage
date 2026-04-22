@@ -5,7 +5,7 @@ description: AI-powered DeFi research and execution skill for BNB Chain. Use whe
 
 # DeFi Research & Execution Skill
 
-AI-powered DeFi research agent for BNB Chain, powered by ChainInsight multi-agent system.
+AI-powered DeFi research agent for BNB Chain, powered by DefiSage multi-agent system.
 
 ## When to use
 - User asks about DeFi protocols, yields, or TVL on BNB Chain
@@ -24,9 +24,9 @@ Research DeFi protocols, yields, and market data on BNB Chain.
 - `query` — Natural language question about DeFi (e.g., "What are the top lending protocols on BNB Chain?")
 
 #### Execution
-1. Query the ChainInsight backend API for live data:
+1. Query the DefiSage backend API for live data:
    ```bash
-   curl -X POST "${CHAININSIGHT_API_URL:-http://localhost:3001}/api/query" \
+   curl -X POST "${DefiSage_API_URL:-http://localhost:3001}/api/query" \
      -H "Content-Type: application/json" \
      -d '{"query": "<user question>"}'
    ```
@@ -46,9 +46,9 @@ Check the user's on-chain DeFi positions and wallet balance.
    ```bash
    purr wallet balance
    ```
-3. For detailed position data, query the ChainInsight API:
+3. For detailed position data, query the DefiSage API:
    ```bash
-   curl -X GET "${CHAININSIGHT_API_URL:-http://localhost:3001}/api/portfolio?address=$(purr wallet address --chain-type ethereum | jq -r '.address')"
+   curl -X GET "${DefiSage_API_URL:-http://localhost:3001}/api/portfolio?address=$(purr wallet address --chain-type ethereum | jq -r '.address')"
    ```
 
 ### Tool: execute_swap

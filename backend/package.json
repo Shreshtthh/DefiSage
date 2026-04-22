@@ -1,5 +1,5 @@
 {
-  "name": "chaininsight",
+  "name": "DefiSage",
   "version": "1.0.0",
   "description": "AI-Powered DeFi Research & Execution Agent for BNB Chain",
   "main": "dist/main.js",
