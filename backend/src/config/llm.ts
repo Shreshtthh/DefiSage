@@ -10,7 +10,7 @@ import axios from 'axios';
 
 // Agent model — always Gemini (ADK-TS native support)
 export function getLlmModel() {
-  return 'gemini-2.5-flash';
+  return 'gemini-3.1-flash-lite-preview';
 }
 
 /**
@@ -32,7 +32,7 @@ export async function queryDGrid(prompt: string, systemPrompt?: string): Promise
     const response = await axios.post(
       'https://api.dgrid.ai/v1/chat/completions',
       {
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3.1-flash-lite-preview',
         messages: [
           ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
           { role: 'user', content: prompt }

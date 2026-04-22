@@ -6,7 +6,7 @@ import { coordinatorAgent } from './agents/coordinator/coordinator-agent';
 import type { TransactionParams } from './types';
 import { getLastBuiltTransactions } from './tools/web3/transaction-builder-tool';
 import { buildTransactionParams } from './tools/web3/transaction-builder';
-import { queryDGrid } from './config/llm';
+import { queryDGrid, getLlmModel } from './config/llm';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,50 +46,50 @@ function handleAgentError(error: any, context: string): {
   shouldFallback: boolean;
 } {
   const errorMessage = error.message || String(error);
-  
+
   // API Overload (503)
-  if (errorMessage.includes('503') || 
-      errorMessage.includes('overloaded') ||
-      errorMessage.includes('UNAVAILABLE')) {
+  if (errorMessage.includes('503') ||
+    errorMessage.includes('overloaded') ||
+    errorMessage.includes('UNAVAILABLE')) {
     return {
       isRetryable: true,
       userMessage: '⚠️ AI service is experiencing high load. Retrying...',
       shouldFallback: true,
     };
   }
-  
+
   // Rate Limit (429)
-  if (errorMessage.includes('429') || 
-      errorMessage.includes('rate limit')) {
+  if (errorMessage.includes('429') ||
+    errorMessage.includes('rate limit')) {
     return {
       isRetryable: true,
       userMessage: '⚠️ Rate limit reached. Retrying in a moment...',
       shouldFallback: true,
     };
   }
-  
+
   // Network/Timeout
-  if (errorMessage.includes('ECONNREFUSED') || 
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('ETIMEDOUT')) {
+  if (errorMessage.includes('ECONNREFUSED') ||
+    errorMessage.includes('timeout') ||
+    errorMessage.includes('ETIMEDOUT')) {
     return {
       isRetryable: true,
       userMessage: '⚠️ Network issue detected. Retrying...',
       shouldFallback: true,
     };
   }
-  
+
   // Invalid API Key
-  if (errorMessage.includes('API key') || 
-      errorMessage.includes('authentication') ||
-      errorMessage.includes('401')) {
+  if (errorMessage.includes('API key') ||
+    errorMessage.includes('authentication') ||
+    errorMessage.includes('401')) {
     return {
       isRetryable: false,
       userMessage: '❌ Configuration error. Please check API credentials.',
       shouldFallback: true,
     };
   }
-  
+
   // Generic error
   return {
     isRetryable: false,
@@ -104,7 +104,7 @@ const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_RESET_TIME = 60000; // 1 minute
 
 async function askAgentWithRetry(
-  instruction: string, 
+  instruction: string,
   maxRetries = 3
 ): Promise<string> {
   // Circuit breaker - fail fast if too many errors
@@ -116,18 +116,18 @@ async function askAgentWithRetry(
   for (let i = 0; i <= maxRetries; i++) {
     try {
       const result = await agentBuilder.ask(instruction);
-      
+
       // Success - reset circuit breaker
       if (circuitBreakerFailures > 0) {
         log('✅', 'Circuit breaker RESET - service recovered');
         circuitBreakerFailures = 0;
       }
-      
+
       return result;
-      
+
     } catch (error: any) {
       const errorInfo = handleAgentError(error, 'Agent query');
-      
+
       log('⚠️', `Attempt ${i + 1}/${maxRetries + 1} failed`, {
         error: error.message,
         isRetryable: errorInfo.isRetryable,
@@ -136,7 +136,7 @@ async function askAgentWithRetry(
       // If not retryable or last attempt, try DGrid fallback
       if (!errorInfo.isRetryable || i === maxRetries) {
         circuitBreakerFailures++;
-        
+
         // Schedule circuit breaker reset
         setTimeout(() => {
           if (circuitBreakerFailures > 0) {
@@ -144,7 +144,7 @@ async function askAgentWithRetry(
             circuitBreakerFailures = Math.max(0, circuitBreakerFailures - 1);
           }
         }, CIRCUIT_BREAKER_RESET_TIME);
-        
+
         // Fall back to DGrid instead of throwing
         log('🔄', 'Falling back to DGrid AI Gateway...');
         return await dgridFallback(instruction);
@@ -156,7 +156,7 @@ async function askAgentWithRetry(
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
+
   return await dgridFallback(instruction);
 }
 
@@ -168,40 +168,41 @@ check yields, understand perpetual futures on MYX Finance, and make informed dec
 Provide concise, data-driven responses. Always mention specific protocols and numbers when available.`;
 
   const result = await queryDGrid(instruction, systemPrompt);
-  
+
   if (result) {
     log('✅', 'DGrid fallback response received');
     return result;
   }
-  
+
   throw new Error('Both Gemini and DGrid are unavailable. Please try again later.');
 }
 
 // NEW: Safe agent initialization with retry
 const initializeAgent = async () => {
   const maxAttempts = 3;
-  
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       console.log(`\n⏳ Initializing agent system (attempt ${attempt}/${maxAttempts})...\n`);
-      
+
       agentBuilder = AgentBuilder
-        .create('chaininsight-agent')
+        .create('DefiSage-agent')
+        .withModel(getLlmModel())
         .withAgent(coordinatorAgent);
-      
-      console.log('✅ ChainInsight agent initialized successfully\n');
+
+      console.log('✅ DefiSage agent initialized successfully\n');
       return; // Success
-      
+
     } catch (error: any) {
       console.error(`❌ Agent initialization failed (attempt ${attempt}/${maxAttempts}):`, error.message);
-      
+
       if (attempt === maxAttempts) {
         console.error('❌ Failed to initialize agent after', maxAttempts, 'attempts');
         console.log('⚠️ Server will run with fallback responses only\n');
         agentBuilder = null;
         return; // Don't crash server
       }
-      
+
       // Wait before retry
       const delay = 2000 * attempt;
       console.log(`⏳ Retrying in ${delay}ms...\n`);
@@ -226,36 +227,36 @@ app.post('/api/dgrid', async (req, res) => {
   try {
     const { prompt, systemPrompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'prompt is required' });
-    
+
     // Try DGrid first
     const dgridResult = await queryDGrid(
       prompt,
       systemPrompt || 'You are a DeFi research analyst specializing in BNB Chain protocols. Provide concise, data-driven analysis.'
     );
-    
+
     if (dgridResult) {
       return res.json({ response: dgridResult, provider: 'DGrid AI Gateway' });
     }
-    
+
     // DGrid unavailable — fall back to Gemini agent
     log('🔄', 'DGrid credits unavailable, routing through Gemini agent...');
     if (agentBuilder) {
       try {
         const agentResult = await agentBuilder.ask(prompt);
-        return res.json({ 
-          response: agentResult, 
+        return res.json({
+          response: agentResult,
           provider: 'DGrid AI Gateway (routed via Gemini)',
           note: 'DGrid integration active — credits pending activation'
         });
       } catch (agentError: any) {
-        return res.status(503).json({ 
+        return res.status(503).json({
           error: 'AI services temporarily unavailable',
           provider: 'DGrid AI Gateway',
           note: 'DGrid credits pending — please try again shortly'
         });
       }
     }
-    
+
     return res.status(503).json({ error: 'AI services initializing' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -271,13 +272,13 @@ function classifyQuery(query: string): {
   quickResponse?: string;
 } {
   const lowerQuery = query.toLowerCase().trim();
-  
+
   // Greetings
   if (/^(hi|hello|hey|sup|yo|greetings)($|[^a-z])/i.test(lowerQuery)) {
     return {
       type: 'greeting',
       shouldCallAgent: false,
-      quickResponse: `👋 Hey there! I'm ChainInsight, your AI-powered DeFi research assistant.
+      quickResponse: `👋 Hey there! I'm DefiSage, your AI-powered DeFi research assistant.
 
 I can help you:
 • Research protocols and yields on BNB Chain
@@ -288,7 +289,7 @@ I can help you:
 Try asking: "What are the top protocols on BNB Chain?" or "Show MYX funding rates"`
     };
   }
-  
+
   // Thanks
   if (/^(thanks|thank you|thx|ty)($|[^a-z])/i.test(lowerQuery)) {
     return {
@@ -299,7 +300,7 @@ Try asking: "What are the top protocols on BNB Chain?" or "Show MYX funding rate
 Need anything else? I'm here to help with DeFi research and execution.`
     };
   }
-  
+
   // How are you / small talk
   if (/how are you|what's up|how's it going/i.test(lowerQuery)) {
     return {
@@ -310,7 +311,7 @@ Need anything else? I'm here to help with DeFi research and execution.`
 Ready to help you navigate the DeFi landscape. What would you like to know about protocols or yields on BNB Chain?`
     };
   }
-  
+
   // Deposit queries
   if (/deposit|invest|put|stake/i.test(lowerQuery) && /\d+/i.test(query)) {
     return {
@@ -318,7 +319,7 @@ Ready to help you navigate the DeFi landscape. What would you like to know about
       shouldCallAgent: true
     };
   }
-  
+
   // DeFi research queries
   if (/protocol|yield|apy|tvl|best|top|compare|pancakeswap|venus|alpaca|radiant|biswap|myx|perp|perpetual|funding|leverage|defi/i.test(lowerQuery)) {
     return {
@@ -326,7 +327,7 @@ Ready to help you navigate the DeFi landscape. What would you like to know about
       shouldCallAgent: true
     };
   }
-  
+
   // Off-topic
   return {
     type: 'offtopic',
@@ -346,10 +347,10 @@ Want to learn about DeFi opportunities on BNB Chain?`
 
 app.post('/api/query', async (req, res) => {
   const requestId = Date.now().toString();
-  
+
   try {
     const { query, sessionId } = req.body;
-    
+
     log('📝', `[${requestId}] New query received`, { query });
 
     if (!query) {
@@ -366,47 +367,60 @@ app.post('/api/query', async (req, res) => {
     log('🔍', `[${requestId}] Query classified as:`, { type: classification.type });
 
     // Retry helper for agent calls — falls back to DGrid on failure
-async function askAgentWithRetry(
-  instruction: string, 
-  maxRetries = 2
-): Promise<string> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await agentBuilder.ask(instruction);
-    } catch (error: any) {
-      const isOverloaded = 
-        error.message?.includes('503') || 
-        error.message?.includes('overloaded') ||
-        error.message?.includes('UNAVAILABLE') ||
-        error.message?.includes('high demand');
-      
-      if (isOverloaded && i < maxRetries - 1) {
-        const delay = 1000 * Math.pow(2, i);
-        log('⏳', `API overloaded, retry ${i + 1}/${maxRetries} in ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      
-      // All retries failed — fall back to DGrid
-      log('🔄', `Gemini unavailable, falling back to DGrid AI Gateway...`);
-      const dgridResult = await queryDGrid(
-        instruction,
-        `You are DefiSage, an expert AI DeFi research assistant for BNB Chain.
+    async function askAgentWithRetry(
+      instruction: string,
+      maxRetries = 2
+    ): Promise<string> {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await agentBuilder.ask(instruction);
+        } catch (error: any) {
+          const errorMsg = error.message || '';
+          const isOverloaded =
+            errorMsg.includes('503') ||
+            errorMsg.includes('overloaded') ||
+            errorMsg.includes('UNAVAILABLE') ||
+            errorMsg.includes('high demand');
+
+          const isQuotaExhausted =
+            errorMsg.includes('429') ||
+            errorMsg.includes('quota') ||
+            errorMsg.includes('RESOURCE_EXHAUSTED') ||
+            errorMsg.includes('rate limit');
+
+          // Quota exhausted — skip retries, go straight to fallback
+          if (isQuotaExhausted) {
+            log('⚠️', 'Gemini quota exhausted, skipping retries...');
+            break;
+          }
+
+          if (isOverloaded && i < maxRetries - 1) {
+            const delay = 1000 * Math.pow(2, i);
+            log('⏳', `API overloaded, retry ${i + 1}/${maxRetries} in ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          // All retries failed — fall back to DGrid
+          log('🔄', `Gemini unavailable, falling back to DGrid AI Gateway...`);
+          const dgridResult = await queryDGrid(
+            instruction,
+            `You are DefiSage, an expert AI DeFi research assistant for BNB Chain.
 You help users analyze DeFi protocols (PancakeSwap, Venus, Lista, Alpaca Finance), 
 check yields, understand perpetual futures on MYX Finance, and make informed decisions.
 Provide concise, data-driven responses with specific protocols and numbers.`
-      );
-      
-      if (dgridResult) {
-        log('✅', 'DGrid fallback response received');
-        return dgridResult;
+          );
+
+          if (dgridResult) {
+            log('✅', 'DGrid fallback response received');
+            return dgridResult;
+          }
+
+          throw error;
+        }
       }
-      
-      throw error;
+      throw new Error('Max retries exceeded');
     }
-  }
-  throw new Error('Max retries exceeded');
-}
 
 
     // Handle quick responses (greetings, thanks, off-topic)
@@ -423,7 +437,7 @@ Provide concise, data-driven responses with specific protocols and numbers.`
       // Deposit with research
       if (classification.type === 'deposit' && hasResearch && hasAmount) {
         log('🔍', `[${requestId}] Research + deposit query`);
-        
+
         const instruction = `${query}
 
       Steps:
@@ -453,12 +467,12 @@ Provide concise, data-driven responses with specific protocols and numbers.`
       // Simple deposit
       else if (classification.type === 'deposit') {
         log('📤', `[${requestId}] Simple deposit`);
-        
+
         const amountMatch = query.match(/(\d+)/);
         const amount = amountMatch ? amountMatch[1] : '100';
-        
+
         const instruction = `User wants to deposit ${amount} USDC. Extract protocol from "${query}". Default to Venus. Call strategy_agent.`;
-        
+
         try {
           response = await askAgentWithRetry(instruction);
           transactions = getLastBuiltTransactions();
@@ -477,7 +491,7 @@ Provide concise, data-driven responses with specific protocols and numbers.`
       // DeFi research
       else {
         log('🔍', `[${requestId}] DeFi research query`);
-        
+
         const instruction = `${query}
         Call market_analyst to fetch live DeFi data. Present results clearly.`;
 
@@ -522,7 +536,7 @@ _💡 Data sourced from DeFiLlama. Ask me to compare specific protocols or check
     }
 
     const duration = Date.now() - startTime;
-    
+
     const newSessionId = sessionId || requestId;
     const session: Session = {
       query,
@@ -532,7 +546,7 @@ _💡 Data sourced from DeFiLlama. Ask me to compare specific protocols or check
       approved: false,
       duration
     };
-    
+
     sessions.set(newSessionId, session);
 
     res.json({
@@ -554,9 +568,9 @@ _💡 Data sourced from DeFiLlama. Ask me to compare specific protocols or check
     log('❌', `[${requestId}] Query failed`, {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    
-    res.status(500).json({ 
-      error: 'Query failed', 
+
+    res.status(500).json({
+      error: 'Query failed',
       details: error instanceof Error ? error.message : 'Unknown error',
       requestId
     });
@@ -566,16 +580,16 @@ _💡 Data sourced from DeFiLlama. Ask me to compare specific protocols or check
 
 app.post('/api/approve', async (req, res) => {
   const requestId = Date.now().toString();
-  
+
   try {
     const { sessionId, approved } = req.body;
-    
+
     log('🔐', `[${requestId}] Approval request`, {
       sessionId,
       approved,
       sessionExists: sessions.has(sessionId)
     });
-    
+
     if (!sessionId) {
       return res.status(400).json({ error: 'Session ID required' });
     }
@@ -587,8 +601,8 @@ app.post('/api/approve', async (req, res) => {
 
     if (!approved) {
       log('🚫', `[${requestId}] User rejected execution`);
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Execution cancelled by user',
         approved: false
       });
@@ -614,9 +628,9 @@ app.post('/api/approve', async (req, res) => {
     log('❌', `[${requestId}] Approval failed`, {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-    
-    res.status(500).json({ 
-      error: 'Approval failed', 
+
+    res.status(500).json({
+      error: 'Approval failed',
       details: error instanceof Error ? error.message : 'Unknown error',
       requestId
     });
@@ -626,11 +640,11 @@ app.post('/api/approve', async (req, res) => {
 app.get('/api/session/:sessionId', (req, res) => {
   const { sessionId } = req.params;
   const session = sessions.get(sessionId);
-  
+
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
-  
+
   res.json({
     success: true,
     session: {
@@ -646,14 +660,14 @@ app.get('/api/session/:sessionId', (req, res) => {
 
 app.listen(PORT, async () => {
   console.log('\n' + '='.repeat(60));
-  console.log('🚀 ChainInsight API Server');
+  console.log('🚀 DefiSage API Server');
   console.log('='.repeat(60));
   console.log(`📡 Running on http://localhost:${PORT}`);
   console.log(`⏰ Started at ${new Date().toISOString()}`);
   console.log('='.repeat(60));
-  
+
   await initializeAgent();
-    
+
   console.log('\n' + '='.repeat(60));
   console.log('✅ System Ready!');
   console.log('='.repeat(60));
