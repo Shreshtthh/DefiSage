@@ -16,6 +16,9 @@ export function getLlmModel() {
 /**
  * Query DGrid AI Gateway directly (OpenAI-compatible API).
  * Used for AI-powered analysis of DeFi data, summaries, and insights.
+ * 
+ * Docs: https://docs.dgrid.ai/AI-Gateway
+ * Model format: [provider]/[model-name]
  */
 export async function queryDGrid(prompt: string, systemPrompt?: string): Promise<string> {
   const apiKey = process.env.DGRID_API_KEY;
@@ -41,6 +44,8 @@ export async function queryDGrid(prompt: string, systemPrompt?: string): Promise
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://defisage.app',
+          'X-Title': 'DefiSage',
         },
         timeout: 30000,
       }
@@ -51,6 +56,10 @@ export async function queryDGrid(prompt: string, systemPrompt?: string): Promise
     return result;
   } catch (error: any) {
     console.error('❌ DGrid query failed:', error.message);
+    if (error.response) {
+      console.error('   Status:', error.response.status);
+      console.error('   Data:', JSON.stringify(error.response.data));
+    }
     return '';
   }
 }
