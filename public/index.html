@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChainInsight - Autonomous Web3 Research Agent</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 1.1em;
+      opacity: 0.9;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      margin-bottom: 20px;
+    }
+
+    .input-section {
+      margin-bottom: 20px;
+    }
+
+    .input-section label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .input-section textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      transition: border-color 0.3s;
+    }
+
+    .input-section textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .button-secondary {
+      background: #10b981;
+    }
+
+    .button-danger {
+      background: #ef4444;
+      margin-left: 10px;
+    }
+
+    .response-section {
+      margin-top: 30px;
+    }
+
+    .response-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.6;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .approval-section {
+      margin-top: 20px;
+      padding: 20px;
+      background: #fef3c7;
+      border: 2px solid #f59e0b;
+      border-radius: 8px;
+    }
+
+    .approval-section h3 {
+      color: #92400e;
+      margin-bottom: 15px;
+    }
+
+    .approval-section p {
+      color: #78350f;
+      margin-bottom: 15px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      border: 4px solid #f3f4f6;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .examples {
+      margin-top: 15px;
+    }
+
+    .examples h4 {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .example-query {
+      background: #f3f4f6;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .example-query:hover {
+      background: #e5e7eb;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .status-research {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .status-approval {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-executing {
+      background: #dcfce7;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔍 ChainInsight</h1>
+      <p>Autonomous Web3 Research & Execution Agent</p>
+    </div>
+
+    <div class="card">
+      <div class="input-section">
+        <label for="query">Ask ChainInsight about DeFi protocols, yields, or strategies:</label>
+        <textarea 
+          id="query" 
+          placeholder="Example: Find me the safest yield opportunity on Base with at least 5% APY"
+        ></textarea>
+      </div>
+
+      <button class="button" id="submitBtn" onclick="submitQuery()">
+        🚀 Research & Analyze
+      </button>
+
+      <div class="examples">
+        <h4>Example Queries:</h4>
+        <div class="example-query" onclick="fillQuery(this)">
+          What are the top 3 DeFi protocols on Base by TVL?
+        </div>
+        <div class="example-query" onclick="fillQuery(this)">
+          Find me a safe lending protocol on Base with good yields
+        </div>
+        <div class="example-query" onclick="fillQuery(this)">
+          Analyze Aave V3 protocol - TVL, risks, and returns
+        </div>
+        <div class="example-query" onclick="fillQuery(this)">
+          Help me deposit 100 USDC into the best DeFi protocol on Base
+        </div>
+      </div>
+    </div>
+
+    <div id="responseSection" style="display: none;">
+      <div class="card">
+        <div class="response-section">
+          <span class="status status-research" id="statusBadge">📊 Research Complete</span>
+          <h3 style="margin-bottom: 15px;">Agent Response:</h3>
+          <div class="response-box" id="responseBox"></div>
+        </div>
+
+        <div id="approvalSection" style="display: none;" class="approval-section">
+          <h3>⚠️ Approval Required</h3>
+          <p>The agent has completed research and generated a strategy. Would you like to proceed with execution?</p>
+          <button class="button button-secondary" onclick="approveExecution()">
+            ✅ Approve & Execute
+          </button>
+          <button class="button button-danger" onclick="cancelExecution()">
+            ❌ Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="loadingSection" style="display: none;">
+      <div class="card">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>ChainInsight agents are researching...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentSessionId = null;
+
+    function fillQuery(element) {
+      document.getElementById('query').value = element.textContent.trim();
+    }
+
+    async function submitQuery() {
+      const query = document.getElementById('query').value.trim();
+      
+      if (!query) {
+        alert('Please enter a query');
+        return;
+      }
+
+      // Show loading
+      document.getElementById('loadingSection').style.display = 'block';
+      document.getElementById('responseSection').style.display = 'none';
+      document.getElementById('submitBtn').disabled = true;
+
+      try {
+        const response = await fetch('http://localhost:3001/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            query,
+            sessionId: currentSessionId || Date.now().toString()
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          currentSessionId = data.sessionId;
+          
+          // Show response
+          document.getElementById('loadingSection').style.display = 'none';
+          document.getElementById('responseSection').style.display = 'block';
+          document.getElementById('responseBox').textContent = data.response;
+          
+          // Show approval section if needed
+          if (data.requiresApproval) {
+            document.getElementById('approvalSection').style.display = 'block';
+            document.getElementById('statusBadge').className = 'status status-approval';
+            document.getElementById('statusBadge').textContent = '⏳ Awaiting Approval';
+          } else {
+            document.getElementById('approvalSection').style.display = 'none';
+          }
+        } else {
+          alert('Error: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Failed to connect to server: ' + error.message);
+      } finally {
+        document.getElementById('submitBtn').disabled = false;
+      }
+    }
+
+    async function approveExecution() {
+      document.getElementById('approvalSection').innerHTML = '<div class="loading"><div class="spinner"></div><p>Executing strategy...</p></div>';
+      document.getElementById('statusBadge').className = 'status status-executing';
+      document.getElementById('statusBadge').textContent = '⚙️ Executing';
+
+      try {
+        const response = await fetch('http://localhost:3001/api/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            sessionId: currentSessionId,
+            approved: true
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          document.getElementById('responseBox').textContent += '\n\n---\n\n✅ EXECUTION COMPLETE:\n\n' + data.response;
+          document.getElementById('approvalSection').innerHTML = '<p style="color: #166534; font-weight: 600;">✅ Execution completed successfully!</p>';
+          document.getElementById('statusBadge').textContent = '✅ Executed';
+        } else {
+          alert('Execution failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Execution error: ' + error.message);
+      }
+    }
+
+    function cancelExecution() {
+      document.getElementById('approvalSection').innerHTML = '<p style="color: #7f1d1d; font-weight: 600;">❌ Execution cancelled by user</p>';
+      document.getElementById('statusBadge').className = 'status status-research';
+      document.getElementById('statusBadge').textContent = '❌ Cancelled';
+    }
+  </script>
+</body>
+</html>
