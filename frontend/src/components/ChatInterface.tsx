@@ -36,7 +36,7 @@ export default function ChatInterface() {
   const { address, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
-  
+
   const { data: balanceData, refetch: refetchBalance } = useReadContract({
     address: CONTRACTS.MOCK_USDC,
     abi: MOCK_USDC_ABI,
@@ -47,7 +47,7 @@ export default function ChatInterface() {
   const balance = balanceData as bigint | undefined;
 
   const { writeContract, data: hash, error: writeError, reset: resetWrite } = useWriteContract();
-  
+
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash,
   });
@@ -61,13 +61,16 @@ export default function ChatInterface() {
     if (isConfirmed && hash) {
       const txUrl = `https://testnet.bscscan.com/tx/${hash}`;
       const txDescription = pendingTransactions[currentTxIndex]?.description || 'Transaction';
-      
+
       addMessage('system', `✅ ${txDescription} confirmed!\n\nView on BscScan: ${txUrl}`);
       refetchBalance();
-      
+
       if (currentTxIndex < pendingTransactions.length - 1) {
         setCurrentTxIndex(currentTxIndex + 1);
-        executeNextTransaction(currentTxIndex + 1);
+        // Give MetaMask a second to breathe before popping up again
+        setTimeout(() => {
+          executeNextTransaction(currentTxIndex + 1);
+        }, 1500);
       } else {
         setExecutionStatus('success');
         setPendingTransactions([]);
@@ -142,7 +145,7 @@ export default function ChatInterface() {
 
     try {
       resetWrite();
-      
+
       if (tx.description.includes('Approve')) {
         const amount = tx.description.match(/(\d+)/)?.[0] || '100';
         writeContract({
@@ -169,7 +172,7 @@ export default function ChatInterface() {
 
   const handleApprove = async () => {
     if (!sessionId || !isConnected || !address) return;
-    
+
     setShowApproval(false);
     setIsLoading(true);
     addMessage('user', '✅ Approved execution');
@@ -177,7 +180,7 @@ export default function ChatInterface() {
     try {
       const response = await api.approve(sessionId, true);
       const transactions = response.transactions || pendingTransactions;
-      
+
       if (!transactions || transactions.length === 0) {
         addMessage('system', '⚠️ No transactions found');
         setIsLoading(false);
@@ -220,11 +223,11 @@ export default function ChatInterface() {
                 <Sparkles className="text-white" size={24} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">ChainInsight</h1>
+                <h1 className="text-2xl font-bold text-white">DefiSage</h1>
                 <p className="text-sm text-gray-400">AI-Powered DeFi Research Agent</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {isConnected && (
                 <>
@@ -293,7 +296,7 @@ export default function ChatInterface() {
                   <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-4 rounded-2xl mb-6">
                     <Sparkles className="text-white" size={48} />
                   </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Welcome to ChainInsight</h2>
+                  <h2 className="text-2xl font-bold text-white mb-2">Welcome to DefiSage</h2>
                   <p className="text-gray-400 mb-8 max-w-md">
                     Your AI-powered DeFi research assistant. Ask me anything about protocols, yields, and strategies.
                   </p>
@@ -315,24 +318,23 @@ export default function ChatInterface() {
                 <>
                   {messages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${
-                        msg.role === 'user'
+                      <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${msg.role === 'user'
                           ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
                           : msg.role === 'system'
-                          ? 'bg-blue-900/30 text-blue-200 border border-blue-700/50'
-                          : 'bg-gray-800 text-gray-100 border border-gray-700'
-                      }`}>
+                            ? 'bg-blue-900/30 text-blue-200 border border-blue-700/50'
+                            : 'bg-gray-800 text-gray-100 border border-gray-700'
+                        }`}>
                         {msg.role === 'agent' && (
                           <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700">
                             <Sparkles size={16} className="text-purple-400" />
-                            <span className="text-xs font-semibold text-gray-400">ChainInsight AI</span>
+                            <span className="text-xs font-semibold text-gray-400">DefiSage AI</span>
                           </div>
                         )}
                         <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{msg.content}</pre>
                         {msg.content.includes('bscscan.com') && (
-                          <a 
-                            href={msg.content.match(/https:\/\/[^\s]+/)?.[0]} 
-                            target="_blank" 
+                          <a
+                            href={msg.content.match(/https:\/\/[^\s]+/)?.[0]}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 mt-3 text-blue-400 hover:text-blue-300 underline text-sm"
                           >
@@ -366,7 +368,7 @@ export default function ChatInterface() {
                     <p className="text-amber-100/80 mb-4">
                       Ready to execute {pendingTransactions.length} transaction(s). Review and approve to continue.
                     </p>
-                    
+
                     <div className="bg-gray-900/50 rounded-xl p-4 mb-4 border border-gray-700">
                       <p className="text-sm font-semibold text-gray-300 mb-3">Transaction Steps:</p>
                       <ol className="space-y-2">
@@ -380,7 +382,7 @@ export default function ChatInterface() {
                         ))}
                       </ol>
                     </div>
-                    
+
                     <div className="flex gap-3">
                       <button
                         onClick={handleApprove}
