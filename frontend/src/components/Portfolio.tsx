@@ -1,4 +1,5 @@
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { bscTestnet } from 'wagmi/chains';
 import { formatUnits } from 'viem';
 import { TrendingUp, Calendar, DollarSign, X, Loader2, Sparkles, ArrowUpRight } from 'lucide-react';
 import { CONTRACTS, MOCK_VAULT_ABI } from '../lib/contracts';
@@ -20,6 +21,7 @@ export default function Portfolio() {
     abi: MOCK_VAULT_ABI,
     functionName: 'getPositions',
     args: address ? [address] : undefined,
+    query: { refetchInterval: 4000 },
   });
 
   const { writeContract, data: hash, error: writeError } = useWriteContract();
@@ -34,6 +36,7 @@ export default function Portfolio() {
     setWithdrawingId(positionId);
     try {
       writeContract({
+        chainId: bscTestnet.id,
         address: CONTRACTS.MOCK_VAULT,
         abi: MOCK_VAULT_ABI,
         functionName: 'withdraw',

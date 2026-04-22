@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { useConnect, useDisconnect } from 'wagmi';
+import { useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { bscTestnet } from 'wagmi/chains';
 import { formatUnits } from 'viem';
 import { Send, Loader2, Wallet, AlertCircle, CheckCircle2, ExternalLink, Sparkles, TrendingUp, Zap } from 'lucide-react';
 import { api } from '../lib/api';
@@ -33,15 +35,25 @@ export default function ChatInterface() {
   const [showPortfolio, setShowPortfolio] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+  const queryClient = useQueryClient();
+
+  // Auto-switch to BSC Testnet if wallet is on wrong chain
+  useEffect(() => {
+    if (isConnected && chainId && chainId !== bscTestnet.id) {
+      switchChain({ chainId: bscTestnet.id });
+    }
+  }, [isConnected, chainId]);
 
   const { data: balanceData, refetch: refetchBalance } = useReadContract({
     address: CONTRACTS.MOCK_USDC,
     abi: MOCK_USDC_ABI,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
+    query: { refetchInterval: 4000 },
   });
 
   const balance = balanceData as bigint | undefined;
@@ -61,20 +73,19 @@ export default function ChatInterface() {
     if (isConfirmed && hash) {
       const txUrl = `https://testnet.bscscan.com/tx/${hash}`;
       const txDescription = pendingTransactions[currentTxIndex]?.description || 'Transaction';
-
+      
       addMessage('system', `✅ ${txDescription} confirmed!\n\nView on BscScan: ${txUrl}`);
-      refetchBalance();
-
+      
       if (currentTxIndex < pendingTransactions.length - 1) {
-        setCurrentTxIndex(currentTxIndex + 1);
-        // Give MetaMask a second to breathe before popping up again
-        setTimeout(() => {
-          executeNextTransaction(currentTxIndex + 1);
-        }, 1500);
+        const nextIndex = currentTxIndex + 1;
+        setCurrentTxIndex(nextIndex);
+        // Auto-chain: fire next transaction immediately after confirmation
+        setTimeout(() => executeNextTransaction(nextIndex), 500);
       } else {
         setExecutionStatus('success');
         setPendingTransactions([]);
         setCurrentTxIndex(0);
+        queryClient.invalidateQueries();
         addMessage('system', '🎉 All transactions completed successfully!');
       }
     }
@@ -127,6 +138,7 @@ export default function ChatInterface() {
     try {
       addMessage('system', '⏳ Minting 1000 mUSDC...');
       writeContract({
+        chainId: bscTestnet.id,
         address: CONTRACTS.MOCK_USDC,
         abi: MOCK_USDC_ABI,
         functionName: 'mint',
@@ -145,10 +157,11 @@ export default function ChatInterface() {
 
     try {
       resetWrite();
-
+      
       if (tx.description.includes('Approve')) {
         const amount = tx.description.match(/(\d+)/)?.[0] || '100';
         writeContract({
+          chainId: bscTestnet.id,
           address: CONTRACTS.MOCK_USDC,
           abi: MOCK_USDC_ABI,
           functionName: 'approve',
@@ -158,6 +171,7 @@ export default function ChatInterface() {
         const amount = tx.description.match(/(\d+)/)?.[0] || '100';
         const protocol = tx.description.match(/to (\w+)/)?.[1] || 'Venus';
         writeContract({
+          chainId: bscTestnet.id,
           address: CONTRACTS.MOCK_VAULT,
           abi: MOCK_VAULT_ABI,
           functionName: 'deposit',
@@ -172,7 +186,7 @@ export default function ChatInterface() {
 
   const handleApprove = async () => {
     if (!sessionId || !isConnected || !address) return;
-
+    
     setShowApproval(false);
     setIsLoading(true);
     addMessage('user', '✅ Approved execution');
@@ -180,7 +194,7 @@ export default function ChatInterface() {
     try {
       const response = await api.approve(sessionId, true);
       const transactions = response.transactions || pendingTransactions;
-
+      
       if (!transactions || transactions.length === 0) {
         addMessage('system', '⚠️ No transactions found');
         setIsLoading(false);
@@ -202,6 +216,7 @@ export default function ChatInterface() {
   const handleReject = () => {
     setShowApproval(false);
     setPendingTransactions([]);
+    setExecutionStatus('idle');
     addMessage('user', '❌ Rejected execution');
     addMessage('agent', 'Execution cancelled. How else can I help you?');
   };
